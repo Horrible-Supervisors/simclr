@@ -1,2 +1,4 @@
-tensorflow
-tensorflow-datasets
+tensorflow==2.14.0
+tensorflow-datasets==4.9.1
+tensorflow-estimator==2.14.0
+tensorflow-hub==0.14.0
