@@ -18,6 +18,7 @@
 import json
 import math
 import os
+import pdb
 
 from absl import app
 from absl import flags
@@ -29,7 +30,18 @@ import objective as obj_lib
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
-
+gpus = tf.config.list_physical_devices('GPU')
+if gpus:
+  try:
+    # Currently, memory growth needs to be the same across GPUs
+    for gpu in gpus:
+      tf.config.experimental.set_memory_growth(gpu, True)
+    logical_gpus = tf.config.list_logical_devices('GPU')
+    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+  except RuntimeError as e:
+    # Memory growth must be set before GPUs have been initialized
+    print(e)
+# pdb.set_trace()
 
 FLAGS = flags.FLAGS
 
@@ -484,6 +496,11 @@ def main(argv):
   logging.info('# eval examples: %d', num_eval_examples)
   logging.info('# eval steps: %d', eval_steps)
 
+  print(f'# train examples: {num_train_examples}', flush=True)
+  print(f'# train_steps: {train_steps}', flush=True)
+  print(f'# eval examples: {num_eval_examples}', flush=True)
+  print(f'# eval steps: {eval_steps}', flush=True)
+
   checkpoint_steps = (
       FLAGS.checkpoint_steps or (FLAGS.checkpoint_epochs * epoch_steps))
 
@@ -503,7 +520,9 @@ def main(argv):
 
   else:
     # For (multiple) GPUs.
-    strategy = tf.distribute.MirroredStrategy()
+    # strategy = tf.distribute.MirroredStrategy([x.name for x in logical_gpus], cross_device_ops=tf.distribute.ReductionToOneDevice(reduce_to_device=[x.name for x in logical_gpus][0]))
+    strategy = tf.distribute.MirroredStrategy([x.name for x in logical_gpus], cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    print(f"Running using MirroredStrategy on {strategy.num_replicas_in_sync} replicas", flush=True)
     logging.info('Running using MirroredStrategy on %d replicas',
                  strategy.num_replicas_in_sync)
 
@@ -627,6 +646,7 @@ def main(argv):
       def train_multiple_steps(iterator):
         # `tf.range` is needed so that this runs in a `tf.while_loop` and is
         # not unrolled.
+        print(f"steps_per_loop: {steps_per_loop}", flush=True)
         for _ in tf.range(steps_per_loop):
           # Drop the "while" prefix created by tf.while_loop which otherwise
           # gets prefixed to every variable name. This does not affect training
@@ -644,10 +664,12 @@ def main(argv):
         # Calls to tf.summary.xyz lookup the summary writer resource which is
         # set by the summary writer's context manager.
         with summary_writer.as_default():
+          # print(f"Iterator Length: {len(iterator)}", flush=True)
           train_multiple_steps(iterator)
           cur_step = global_step.numpy()
           checkpoint_manager.save(cur_step)
           logging.info('Completed: %d / %d steps', cur_step, train_steps)
+          print(f'Completed: {cur_step} / {train_steps} steps', flush=True)
           metrics.log_and_write_metrics_to_summary(all_metrics, cur_step)
           tf.summary.scalar(
               'learning_rate',
