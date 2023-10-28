@@ -49,7 +49,7 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
     preprocess_fn_finetune = get_preprocess_fn(is_training, is_pretrain=False)
     num_classes = builder.info.features['label'].num_classes
 
-    def map_fn(image, label):
+    def map_fn(image, label, id):
       """Produces multiple transformations of the same batch."""
       if is_training and FLAGS.train_mode == 'pretrain':
         xs = []
@@ -113,3 +113,8 @@ def get_preprocess_fn(is_training, is_pretrain):
       is_training=is_training,
       color_jitter_strength=color_jitter_strength,
       test_crop=test_crop)
+
+
+def get_variation_images(id):
+  """Get variations of image with id"""
+  raise NotImplementedError
