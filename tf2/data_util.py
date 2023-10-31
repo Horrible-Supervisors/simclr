@@ -18,6 +18,7 @@
 import functools
 
 import tensorflow.compat.v2 as tf
+import numpy as np
 
 CROP_PROPORTION = 0.875  # Standard for ImageNet.
 
@@ -516,3 +517,41 @@ def preprocess_image(image, height, width, is_training=False,
     return preprocess_for_train(image, height, width, color_jitter_strength)
   else:
     return preprocess_for_eval(image, height, width, test_crop)
+
+
+def get_shard_num(id, cumsum):
+    return np.argmax(cumsum > id)
+
+
+def get_filename(shard, out_dir, format_train, num_shards):
+    return f'{out_dir}/{format_train}.tfrecord-{shard:05d}-of-{num_shards:05d}'
+
+
+def get_index(id, cumsum, shard):
+    return id - cumsum[shard]
+
+
+def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
+    shard_lengths = np.array([
+      592, 592, 591, 592, 592, 592, 592, 591,
+      592, 592, 592, 592, 592, 591, 592, 592
+    ])
+    cumsum = np.cumsum(shard_lengths)
+    shard = get_shard_num(id, cumsum)
+    filename = get_filename(shard, out_dir, format_train, num_shards)
+    print(f'Reading from {filename}')
+    ds = tf.data.TFRecordDataset(filename)
+    index = get_index(id, cumsum, shard)
+    a, b = np.random.choice(np.arange(num_variations), 2, replace=False)
+    images = []
+    indices = [index + a, index + b]
+
+    for i, element in enumerate(ds.as_numpy_iterator()):
+        if i in indices:
+            example = tf.train.Example()
+            example.ParseFromString(element)
+            image = example.features.feature['image'].bytes_list.value[0]
+            image = tf.image.decode_jpeg(image, channels=3)
+            images.append(image)
+
+    return images
