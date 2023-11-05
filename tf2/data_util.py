@@ -519,16 +519,8 @@ def preprocess_image(image, height, width, is_training=False,
     return preprocess_for_eval(image, height, width, test_crop)
 
 
-# def get_shard_num(id, cumsum):
-#     return np.argmax(cumsum > id)
-
-
 def get_filename(shard, out_dir, format_train, num_shards):
     return f'{out_dir}/{format_train}.tfrecord-{shard:05d}-of-{num_shards:05d}'
-
-
-def get_index(id, cumsum, shard):
-    return cumsum[shard] - id
 
 
 def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
@@ -548,7 +540,7 @@ def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
     filename = get_filename(shard, out_dir, format_train, num_shards)
     # print(f'Reading from {filename}')
     ds = tf.data.TFRecordDataset(filename)
-    index = get_index(id, cumsum, shard)
+    index = cumsum[shard] - id
     a, b = np.random.choice(np.arange(num_variations), 2, replace=False)
     images = []
     indices = [index + a, index + b]
