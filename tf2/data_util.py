@@ -520,7 +520,7 @@ def preprocess_image(image, height, width, is_training=False,
 
 
 def get_filename(shard, out_dir, format_train, num_shards):
-    return f'{out_dir}/{format_train}.tfrecord-{shard:05d}-of-{num_shards:05d}'
+    return f'{out_dir}/{format_train}.tfrecord-{0:05d}-of-{num_shards:05d}'
 
 
 def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
@@ -541,15 +541,16 @@ def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
     filename = get_filename(shard, out_dir, format_train, num_shards)
     # print(f'Reading from {filename}')
     ds = tf.data.TFRecordDataset(filename)
-    index = cumsum[shard] - id
+    # index = cumsum[shard] - id
     a, b = np.random.choice(np.arange(num_variations), 2, replace=False)
     images = []
-    indices = [index + a, index + b]
+    # indices = [index + a, index + b]
 
-    for i, element in enumerate(ds.as_numpy_iterator()):
-        if i in indices:
-            example = tf.train.Example()
-            example.ParseFromString(element)
+    for element in ds.as_numpy_iterator():
+        example = tf.train.Example()
+        example.ParseFromString(element)
+        i = example.features.feature['id'].int64_list.value[0]
+        if id == i and len(images) < 2:
             image = example.features.feature['image'].bytes_list.value[0]
             image = tf.image.decode_jpeg(image, channels=3)
             images.append(tf.image.convert_image_dtype(image, dtype=tf.float32))
