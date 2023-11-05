@@ -19,6 +19,8 @@ import functools
 from absl import flags
 from absl import logging
 
+import pdb
+
 import data_util
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
@@ -45,7 +47,7 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
     batch_size = input_context.get_per_replica_batch_size(global_batch_size)
     logging.info('Global batch size: %d', global_batch_size)
     logging.info('Per-replica batch size: %d', batch_size)
-    # preprocess_fn_pretrain = get_preprocess_fn(is_training, is_pretrain=True)
+    preprocess_fn_pretrain = get_preprocess_fn(is_training, is_pretrain=True)
     preprocess_fn_finetune = get_preprocess_fn(is_training, is_pretrain=False)
     num_classes = builder.info.features['label'].num_classes
 
@@ -53,9 +55,24 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
       """Produces multiple transformations of the same batch."""
       if is_training and FLAGS.train_mode == 'pretrain':
         xs = []
-        # for _ in range(2):  # Two transformations
-        #   xs.append(preprocess_fn_pretrain(image))
-        xs = data_util.get_image_variations(id, num_variations, out_dir, format_train, num_shards)
+        for _ in range(2):  # Two transformations
+          xs.append(preprocess_fn_pretrain(image))
+        image = tf.concat(xs, -1)
+      else:
+        image = preprocess_fn_finetune(image)
+      label = tf.one_hot(label, num_classes)
+      return image, label
+
+    @tf.py_function(Tout=[tf.float32, tf.float32])
+    def img_var_map_fn(image, label, id):
+      """Produces multiple transformations of the same batch."""
+      if is_training and FLAGS.train_mode == 'pretrain':
+        xs = []
+        num_variations = 5
+        out_dir = "/home/jrick6/tensorflow_datasets/imagenette_id_variations/full-size-v2/1.0.0"
+        format_train = "imagenette-train"
+        num_shards = 16
+        xs = data_util.get_image_variations(id.numpy(), num_variations, out_dir, format_train, num_shards)
         image = tf.concat(xs, -1)
       else:
         image = preprocess_fn_finetune(image)
@@ -66,14 +83,14 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
     dataset = builder.as_dataset(
         split=FLAGS.train_split if is_training else FLAGS.eval_split,
         shuffle_files=is_training,
-        as_supervised=True,
+        as_supervised=True)#,
         # Passing the input_context to TFDS makes TFDS read different parts
         # of the dataset on different workers. We also adjust the interleave
         # parameters to achieve better performance.
-        read_config=tfds.ReadConfig(
-            interleave_cycle_length=32,
-            interleave_block_length=1,
-            input_context=input_context))
+        # read_config=tfds.ReadConfig(
+        #     interleave_cycle_length=32,
+        #     interleave_block_length=1,
+        #     input_context=input_context))
     if FLAGS.cache_dataset:
       dataset = dataset.cache()
     if is_training:
@@ -84,8 +101,10 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
       buffer_multiplier = 50 if FLAGS.image_size <= 32 else 10
       dataset = dataset.shuffle(batch_size * buffer_multiplier)
       dataset = dataset.repeat(-1)
+    # dataset = dataset.map(
+    #     map_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     dataset = dataset.map(
-        map_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        img_var_map_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
     dataset = dataset.batch(batch_size, drop_remainder=is_training)
     dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
     return dataset
