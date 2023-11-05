@@ -528,7 +528,7 @@ def get_filename(shard, out_dir, format_train, num_shards):
 
 
 def get_index(id, cumsum, shard):
-    return id - cumsum[shard]
+    return cumsum[shard] - id
 
 
 def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
@@ -539,7 +539,7 @@ def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
     cumsum = np.cumsum(shard_lengths)
     shard = get_shard_num(id, cumsum)
     filename = get_filename(shard, out_dir, format_train, num_shards)
-    print(f'Reading from {filename}')
+    # print(f'Reading from {filename}')
     ds = tf.data.TFRecordDataset(filename)
     index = get_index(id, cumsum, shard)
     a, b = np.random.choice(np.arange(num_variations), 2, replace=False)
@@ -552,6 +552,6 @@ def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
             example.ParseFromString(element)
             image = example.features.feature['image'].bytes_list.value[0]
             image = tf.image.decode_jpeg(image, channels=3)
-            images.append(image)
+            images.append(tf.image.convert_image_dtype(image, dtype=tf.float32))
 
     return images
