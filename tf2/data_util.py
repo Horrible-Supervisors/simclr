@@ -533,10 +533,11 @@ def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
       5326, 5918, 6510, 7102, 7693, 8285, 8877, 9469
     ])
     shard = len(shard_lengths) - 1
+    flag = False
     for s in range(len(shard_lengths)):
-        if cumsum[s] > id:
+        if cumsum[s] > id and not flag:
             shard = s - 1
-            break
+            flag = True
     filename = get_filename(shard, out_dir, format_train, num_shards)
     # print(f'Reading from {filename}')
     ds = tf.data.TFRecordDataset(filename)
