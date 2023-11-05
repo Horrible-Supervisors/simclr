@@ -41,7 +41,6 @@ if gpus:
   except RuntimeError as e:
     # Memory growth must be set before GPUs have been initialized
     print(e)
-# pdb.set_trace()
 
 FLAGS = flags.FLAGS
 
@@ -479,6 +478,10 @@ def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
+  # Our data loading method requires Eager Execution to work.
+  # Eager Execution requires both of these to be active.
+  tf.config.run_functions_eagerly(True)
+  tf.data.experimental.enable_debug_mode()
 
   builder = tfds.builder(FLAGS.dataset, data_dir=FLAGS.data_dir)
   builder.download_and_prepare()
@@ -500,9 +503,18 @@ def main(argv):
   print(f'# train_steps: {train_steps}', flush=True)
   print(f'# eval examples: {num_eval_examples}', flush=True)
   print(f'# eval steps: {eval_steps}', flush=True)
+  print(f'# epoch steps: {epoch_steps}', flush=True)
+
+  # train examples: 9469
+  # train_steps: 118363
+  # eval examples: 3925
+  # eval steps: 16
+  # epoch steps: 1184
+  # checkpoint steps: 1184
 
   checkpoint_steps = (
       FLAGS.checkpoint_steps or (FLAGS.checkpoint_epochs * epoch_steps))
+  print(f'# checkpoint steps: {checkpoint_steps}', flush=True)
 
   topology = None
   if FLAGS.use_tpu:
@@ -634,9 +646,9 @@ def main(argv):
         # replicas so we divide the loss by the number of replicas so that the
         # mean gradient is applied.
         loss = loss / strategy.num_replicas_in_sync
-        logging.info('Trainable variables:')
-        for var in model.trainable_variables:
-          logging.info(var.name)
+        # logging.info('Trainable variables:')
+        # for var in model.trainable_variables:
+        #   logging.info(var.name)
         grads = tape.gradient(loss, model.trainable_variables)
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
