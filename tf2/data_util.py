@@ -519,8 +519,8 @@ def preprocess_image(image, height, width, is_training=False,
     return preprocess_for_eval(image, height, width, test_crop)
 
 
-def get_shard_num(id, cumsum):
-    return np.argmax(cumsum > id)
+# def get_shard_num(id, cumsum):
+#     return np.argmax(cumsum > id)
 
 
 def get_filename(shard, out_dir, format_train, num_shards):
@@ -536,8 +536,15 @@ def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
       592, 592, 591, 592, 592, 592, 592, 591,
       592, 592, 592, 592, 592, 591, 592, 592
     ])
-    cumsum = np.cumsum(shard_lengths)
-    shard = get_shard_num(id, cumsum)
+    cumsum = np.array([
+      0, 592, 1184, 1775, 2367, 2959, 3551, 4143, 4734,
+      5326, 5918, 6510, 7102, 7693, 8285, 8877, 9469
+    ])
+    shard = len(shard_lengths) - 1
+    for s in range(len(shard_lengths)):
+        if cumsum[s] > id:
+            shard = s - 1
+            break
     filename = get_filename(shard, out_dir, format_train, num_shards)
     # print(f'Reading from {filename}')
     ds = tf.data.TFRecordDataset(filename)
