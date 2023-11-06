@@ -519,16 +519,8 @@ def preprocess_image(image, height, width, is_training=False,
     return preprocess_for_eval(image, height, width, test_crop)
 
 
-def get_shard_num(id, cumsum):
-    return np.argmax(cumsum > id)
-
-
 def get_filename(shard, out_dir, format_train, num_shards):
-    return f'{out_dir}/{format_train}.tfrecord-{shard:05d}-of-{num_shards:05d}'
-
-
-def get_index(id, cumsum, shard):
-    return cumsum[shard] - id
+    return f'{out_dir}/{format_train}.tfrecord-{0:05d}-of-{num_shards:05d}'
 
 
 def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
@@ -536,20 +528,29 @@ def get_image_variations(id, num_variations, out_dir, format_train, num_shards):
       592, 592, 591, 592, 592, 592, 592, 591,
       592, 592, 592, 592, 592, 591, 592, 592
     ])
-    cumsum = np.cumsum(shard_lengths)
-    shard = get_shard_num(id, cumsum)
+    cumsum = np.array([
+      0, 592, 1184, 1775, 2367, 2959, 3551, 4143, 4734,
+      5326, 5918, 6510, 7102, 7693, 8285, 8877, 9469
+    ])
+    shard = len(shard_lengths) - 1
+    flag = False
+    for s in range(len(shard_lengths)):
+        if cumsum[s] > id and not flag:
+            shard = s - 1
+            flag = True
     filename = get_filename(shard, out_dir, format_train, num_shards)
     # print(f'Reading from {filename}')
     ds = tf.data.TFRecordDataset(filename)
-    index = get_index(id, cumsum, shard)
+    # index = cumsum[shard] - id
     a, b = np.random.choice(np.arange(num_variations), 2, replace=False)
     images = []
-    indices = [index + a, index + b]
+    # indices = [index + a, index + b]
 
-    for i, element in enumerate(ds.as_numpy_iterator()):
-        if i in indices:
-            example = tf.train.Example()
-            example.ParseFromString(element)
+    for element in ds.as_numpy_iterator():
+        example = tf.train.Example()
+        example.ParseFromString(element)
+        i = example.features.feature['id'].int64_list.value[0]
+        if id == i and len(images) < 2:
             image = example.features.feature['image'].bytes_list.value[0]
             image = tf.image.decode_jpeg(image, channels=3)
             images.append(tf.image.convert_image_dtype(image, dtype=tf.float32))
