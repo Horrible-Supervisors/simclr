@@ -19,6 +19,7 @@ import json
 import math
 import os
 import pdb
+import traceback
 
 from absl import app
 from absl import flags
@@ -29,6 +30,8 @@ import model as model_lib
 import objective as obj_lib
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
+
+# tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -478,11 +481,6 @@ def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  # Our data loading method requires Eager Execution to work.
-  # Eager Execution requires both of these to be active.
-  tf.config.run_functions_eagerly(True)
-  tf.data.experimental.enable_debug_mode()
-
   builder = tfds.builder(FLAGS.dataset, data_dir=FLAGS.data_dir)
   builder.download_and_prepare()
   num_train_examples = builder.info.splits[FLAGS.train_split].num_examples
@@ -532,8 +530,8 @@ def main(argv):
 
   else:
     # For (multiple) GPUs.
-    # strategy = tf.distribute.MirroredStrategy([x.name for x in logical_gpus], cross_device_ops=tf.distribute.ReductionToOneDevice(reduce_to_device=[x.name for x in logical_gpus][0]))
-    strategy = tf.distribute.MirroredStrategy([x.name for x in logical_gpus], cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
+    strategy = tf.distribute.MirroredStrategy([x.name for x in logical_gpus], cross_device_ops=tf.distribute.ReductionToOneDevice(reduce_to_device=[x.name for x in logical_gpus][0]))
+    # strategy = tf.distribute.MirroredStrategy([x.name for x in logical_gpus], cross_device_ops=tf.distribute.HierarchicalCopyAllReduce())
     print(f"Running using MirroredStrategy on {strategy.num_replicas_in_sync} replicas", flush=True)
     logging.info('Running using MirroredStrategy on %d replicas',
                  strategy.num_replicas_in_sync)
@@ -605,11 +603,13 @@ def main(argv):
           # Only log augmented images for the first tower.
           tf.summary.image(
               'image', features[:, :, :, :3], step=optimizer.iterations + 1)
+        logging.info("Run Model")
         projection_head_outputs, supervised_head_outputs = model(
             features, training=True)
         loss = None
         if projection_head_outputs is not None:
           outputs = projection_head_outputs
+          logging.info("Contrastive Loss")
           con_loss, logits_con, labels_con = obj_lib.add_contrastive_loss(
               outputs,
               hidden_norm=FLAGS.hidden_norm,
@@ -649,8 +649,11 @@ def main(argv):
         # logging.info('Trainable variables:')
         # for var in model.trainable_variables:
         #   logging.info(var.name)
+        logging.info("Get Grads")
         grads = tape.gradient(loss, model.trainable_variables)
+        logging.info("Apply Grads")
         optimizer.apply_gradients(zip(grads, model.trainable_variables))
+        logging.info("Done")
 
     with strategy.scope():
 

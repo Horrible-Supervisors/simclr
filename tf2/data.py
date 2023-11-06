@@ -20,6 +20,7 @@ from absl import flags
 from absl import logging
 
 import pdb
+import numpy as np
 
 import data_util
 import tensorflow.compat.v2 as tf
@@ -51,8 +52,23 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
     preprocess_fn_finetune = get_preprocess_fn(is_training, is_pretrain=False)
     num_classes = builder.info.features['label'].num_classes
 
-    def map_fn(image, label, id):
+    # def map_fn(image, label, id):
+    #   """Produces multiple transformations of the same batch."""
+    #   if is_training and FLAGS.train_mode == 'pretrain':
+    #     xs = []
+    #     for _ in range(2):  # Two transformations
+    #       xs.append(preprocess_fn_pretrain(image))
+    #     image = tf.concat(xs, -1)
+    #   else:
+    #     image = preprocess_fn_finetune(image)
+    #   label = tf.one_hot(label, num_classes)
+    #   return image, label
+
+    def map_fn(inp_dict):
       """Produces multiple transformations of the same batch."""
+      image = inp_dict['image']
+      label = inp_dict['label']
+      id = inp_dict['id']
       if is_training and FLAGS.train_mode == 'pretrain':
         xs = []
         for _ in range(2):  # Two transformations
@@ -63,16 +79,37 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
       label = tf.one_hot(label, num_classes)
       return image, label
 
-    @tf.py_function(Tout=[tf.float32, tf.float32])
-    def img_var_map_fn(image, label, id):
+    # @tf.py_function(Tout=[tf.float32, tf.float32])
+    # def img_var_map_fn(image, label, id):
+    #   """Produces multiple transformations of the same batch."""
+    #   pdb.set_trace()
+    #   if is_training and FLAGS.train_mode == 'pretrain':
+    #     xs = []
+    #     num_variations = 5
+    #     out_dir = "/home/jrick6/tensorflow_datasets/imagenette_id_variations/full-size-v2/1.0.0"
+    #     format_train = "imagenette-train"
+    #     num_shards = 16
+    #     xs = data_util.get_image_variations(id.numpy(), num_variations, out_dir, format_train, num_shards)
+    #     image = tf.concat(xs, -1)
+    #   else:
+    #     image = preprocess_fn_finetune(image)
+    #   label = tf.one_hot(label, num_classes)
+    #   return image, label
+
+    def img_var_map_fn(inp_dict):
       """Produces multiple transformations of the same batch."""
+      image = inp_dict['image']
+      label = inp_dict['label']
+      id = inp_dict['id']
       if is_training and FLAGS.train_mode == 'pretrain':
         xs = []
         num_variations = 5
-        out_dir = "/home/jrick6/tensorflow_datasets/imagenette_id_variations/full-size-v2/1.0.0"
-        format_train = "imagenette-train"
-        num_shards = 16
-        xs = data_util.get_image_variations(id.numpy(), num_variations, out_dir, format_train, num_shards)
+        image_var_indices = np.random.choice(np.arange(num_variations), size=2, replace=False)
+        for idx in image_var_indices:
+          cur_vari_img = inp_dict[f'variation_{idx}']
+          cur_vari_img = tf.image.convert_image_dtype(cur_vari_img, dtype=tf.float32)
+          xs.append(cur_vari_img)
+
         image = tf.concat(xs, -1)
       else:
         image = preprocess_fn_finetune(image)
@@ -83,14 +120,14 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
     dataset = builder.as_dataset(
         split=FLAGS.train_split if is_training else FLAGS.eval_split,
         shuffle_files=is_training,
-        as_supervised=True)#,
+        as_supervised=False,
         # Passing the input_context to TFDS makes TFDS read different parts
         # of the dataset on different workers. We also adjust the interleave
         # parameters to achieve better performance.
-        # read_config=tfds.ReadConfig(
-        #     interleave_cycle_length=32,
-        #     interleave_block_length=1,
-        #     input_context=input_context))
+        read_config=tfds.ReadConfig(
+            interleave_cycle_length=32,
+            interleave_block_length=1,
+            input_context=input_context))
     if FLAGS.cache_dataset:
       dataset = dataset.cache()
     if is_training:
