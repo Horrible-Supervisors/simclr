@@ -20,6 +20,7 @@ import math
 import os
 import pdb
 import traceback
+import numpy as np
 
 from absl import app
 from absl import flags
@@ -30,6 +31,8 @@ import model as model_lib
 import objective as obj_lib
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
+
+# import random_util
 
 # tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
@@ -251,6 +254,28 @@ flags.DEFINE_boolean(
     'use_blur', True,
     'Whether or not to use Gaussian blur for augmentation during pretraining.')
 
+flags.DEFINE_boolean(
+    'variations', False,
+    'Whether or not to use stable-diffusion-image-variation for data augmentation during pretraining. '
+    'Note that this will not run any other data augmentations.')
+
+flags.DEFINE_integer(
+    'num_variations', 25,
+    'The number of image variations to select from. Only used when variations is True')
+
+flags.DEFINE_enum(
+    'augmentation_mode', 'variations_only', ['variations_only', 'variations_then_default', 'variations_or_default'],
+    'The variation training augmentation mode to use. '
+    'Only used when variations is True.')
+
+flags.DEFINE_float(
+    'variations_or_default_chance', 0.50,
+    'Chance to choose to use variation or default on a sample. '
+    'If the np.random.random() is < this input it will use default augmentations.')
+
+flags.DEFINE_boolean(
+    'DEBUG_LOG', False,
+    'Print verbose statements for debugging if True.')
 
 def get_salient_tensors_dict(include_projection_head):
   """Returns a dictionary of tensors."""
@@ -481,6 +506,10 @@ def main(argv):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
+  # tf.config.run_functions_eagerly(True)
+  # tf.data.experimental.enable_debug_mode()
+  # print(f"tf.executing_eagerly(): {tf.executing_eagerly()}", flush=True)
+  print(f"variations, num_variations: {FLAGS.variations}, {FLAGS.num_variations}", flush=True)
   builder = tfds.builder(FLAGS.dataset, data_dir=FLAGS.data_dir)
   builder.download_and_prepare()
   num_train_examples = builder.info.splits[FLAGS.train_split].num_examples
@@ -502,6 +531,12 @@ def main(argv):
   print(f'# eval examples: {num_eval_examples}', flush=True)
   print(f'# eval steps: {eval_steps}', flush=True)
   print(f'# epoch steps: {epoch_steps}', flush=True)
+
+  # random_util.random_indices = []
+  # indices = np.arange(25)
+  # for _ in range(num_train_examples):
+  #   random_util.random_indices.append(np.random.choice(indices, size=2, replace=False))
+  # random_util.random_indices = np.array(random_util.random_indices)
 
   # train examples: 9469
   # train_steps: 118363
@@ -680,6 +715,13 @@ def main(argv):
         # set by the summary writer's context manager.
         with summary_writer.as_default():
           # print(f"Iterator Length: {len(iterator)}", flush=True)
+
+          # random_util.random_indices = []
+          # indices = np.arange(25)
+          # for _ in range(num_train_examples):
+          #   random_util.random_indices.append(np.random.choice(indices, size=2, replace=False))
+          # random_util.random_indices = np.array(random_util.random_indices)
+
           train_multiple_steps(iterator)
           cur_step = global_step.numpy()
           checkpoint_manager.save(cur_step)
