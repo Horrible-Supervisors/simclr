@@ -711,6 +711,39 @@ def main(argv):
       cur_step = global_step.numpy()
       iterator = iter(ds)
       while cur_step < train_steps:
+        # images, labels, ids = next(iterator)
+        # shard0_fpath = "/home/jrick6/tensorflow_datasets/imagenette_id_variations/full-size-v2/1.0.0/imagenette-train.tfrecord-00000-of-00016"
+        # other_ds = tf.data.TFRecordDataset(shard0_fpath)
+        # ex_list = []
+        # for element in other_ds.as_numpy_iterator():
+        #   ex_list.append(tf.train.Example())
+        #   ex_list[len(ex_list)-1].ParseFromString(element)
+        #   if len(ex_list) >= 5:
+        #     break
+
+        # num_variations = FLAGS.num_variations
+        # var_tensor_list = []
+        # for i in range(5):
+        #   variation_list = []
+        #   for idx in range(num_variations):
+        #     ex_vari = ex_list[i].features.feature[f'variation_{idx}'].bytes_list.value[0]
+        #     ex_vari_img = tf.image.decode_jpeg(ex_vari, channels=3)
+        #     ex_vari_img = tf.image.convert_image_dtype(ex_vari_img, dtype=tf.float32)
+        #     variation_list.append(tf.expand_dims(ex_vari_img, -1))
+        #   var_tensor = tf.concat(variation_list, -1)
+        #   var_tensor_list.append(var_tensor)
+
+        # pdb.set_trace()
+        # for i in range(5):
+        #   im0 = images[i, :, :, :3].numpy()
+        #   im1 = images[i, :, :, 3:].numpy()
+        #   y = var_tensor_list[i].numpy()
+        #   x0 = np.argwhere(np.all(np.expand_dims(im0, -1) == y, axis=(0,1,2)))[0,0]
+        #   x1 = np.argwhere(np.all(np.expand_dims(im1, -1) == y, axis=(0,1,2)))[0,0]
+        #   print(f"{x0}, {x1}", flush=True)
+        #   # im0 == y[:, :, :, 15]
+        #   # im1 == y[:, :, :, 4]
+        # pdb.set_trace()
         # Calls to tf.summary.xyz lookup the summary writer resource which is
         # set by the summary writer's context manager.
         with summary_writer.as_default():
