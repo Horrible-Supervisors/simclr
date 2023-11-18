@@ -26,158 +26,9 @@ import data_util
 import tensorflow.compat.v2 as tf
 import tensorflow_datasets as tfds
 
-# import random_util
+import data_random_util
 
 FLAGS = flags.FLAGS
-
-def index_func0(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func0", flush=True)
-    return tensor[:,:,:,0]
-
-def index_func1(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func1", flush=True)
-    return tensor[:,:,:,1]
-
-def index_func2(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func2", flush=True)
-    return tensor[:,:,:,2]
-
-def index_func3(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func3", flush=True)
-    return tensor[:,:,:,3]
-
-def index_func4(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func4", flush=True)
-    return tensor[:,:,:,4]
-
-def index_func5(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func5", flush=True)
-    return tensor[:,:,:,5]
-
-def index_func6(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func6", flush=True)
-    return tensor[:,:,:,6]
-
-def index_func7(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func7", flush=True)
-    return tensor[:,:,:,7]
-
-def index_func8(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func8", flush=True)
-    return tensor[:,:,:,8]
-
-def index_func9(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func9", flush=True)
-    return tensor[:,:,:,9]
-
-def index_func10(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func10", flush=True)
-    return tensor[:,:,:,10]
-
-def index_func11(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func11", flush=True)
-    return tensor[:,:,:,11]
-
-def index_func12(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func12", flush=True)
-    return tensor[:,:,:,12]
-
-def index_func13(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func13", flush=True)
-    return tensor[:,:,:,13]
-
-def index_func14(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func14", flush=True)
-    return tensor[:,:,:,14]
-
-def index_func15(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func15", flush=True)
-    return tensor[:,:,:,15]
-
-def index_func16(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func16", flush=True)
-    return tensor[:,:,:,16]
-
-def index_func17(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func17", flush=True)
-    return tensor[:,:,:,17]
-
-def index_func18(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func18", flush=True)
-    return tensor[:,:,:,18]
-
-def index_func19(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func19", flush=True)
-    return tensor[:,:,:,19]
-
-def index_func20(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func20", flush=True)
-    return tensor[:,:,:,20]
-
-def index_func21(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func21", flush=True)
-    return tensor[:,:,:,21]
-
-def index_func22(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func22", flush=True)
-    return tensor[:,:,:,22]
-
-def index_func23(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func23", flush=True)
-    return tensor[:,:,:,23]
-
-def index_func24(tensor):
-    if FLAGS.DEBUG_LOG:
-       print("index_func24", flush=True)
-    return tensor[:,:,:,24]
-
-class Lambda:
-    def __init__(self, func, arg):
-        self._func = func
-        self._arg = arg
-        
-    def __call__(self):
-        return self._func(self._arg)
-
-def get_random_index(tensor):
-    list_of_funcs = [
-      index_func0, index_func1, index_func2, index_func3, index_func4, 
-      index_func5, index_func6, index_func7, index_func8, index_func9, 
-      index_func10, index_func11, index_func12, index_func13, index_func14, 
-      index_func15, index_func16, index_func17, index_func18, index_func19, 
-      index_func20, index_func21, index_func22, index_func23, index_func24
-    ]
-    branch_index = tf.random.uniform(shape=[], minval=0, maxval=len(list_of_funcs), dtype=tf.int32)
-    output = tf.switch_case(
-        branch_index=branch_index, 
-        branch_fns=[Lambda(func, tensor) for func in list_of_funcs], 
-    )
-    return output
-
 
 def build_input_fn(builder, global_batch_size, topology, is_training):
   """Build input function.
@@ -259,27 +110,28 @@ def build_input_fn(builder, global_batch_size, topology, is_training):
           variation_list.append(tf.expand_dims(inp_dict[f'variation_{idx}'], -1))
         var_tensor = tf.concat(variation_list, -1)
 
-        # random_indices = tf.convert_to_tensor(random_util.random_indices)
-        # print(random_indices, flush=True)
-        # print(random_indices[id], flush=True)
-
         print(var_tensor, flush=True)
         if FLAGS.augmentation_mode == "variations_only":
-          for _ in range(2):
-            xs.append(tf.image.convert_image_dtype(get_random_index(var_tensor), dtype=tf.float32))
-          image = tf.concat(xs, -1)
+          image = data_random_util.get_random_index(var_tensor)
         elif FLAGS.augmentation_mode == "variations_then_default":
-          for _ in range(2):
-            xs.append(preprocess_fn_pretrain(get_random_index(var_tensor)))
+          cur_image = data_random_util.get_random_index(var_tensor)
+          print(cur_image, flush=True)
+          x0 = cur_image[:, :, :3]
+          x1 = cur_image[:, :, 3:]
+          xs.append(preprocess_fn_pretrain(x0))
+          xs.append(preprocess_fn_pretrain(x1))
           image = tf.concat(xs, -1)
         elif FLAGS.augmentation_mode == "variations_or_default":
             if np.random.random() < FLAGS.variations_or_default_chance:
               for _ in range(2):
                 xs.append(preprocess_fn_pretrain(image))
+              image = tf.concat(xs, -1)
             else:
-              for _ in range(2):
-                xs.append(tf.image.convert_image_dtype(get_random_index(var_tensor), dtype=tf.float32))
-            image = tf.concat(xs, -1)
+              image = data_random_util.get_random_index(var_tensor)
+        elif FLAGS.augmentation_mode == "variations_and_default":
+           xs.append(preprocess_fn_pretrain(image))
+           xs.append(data_random_util.get_random_index(var_tensor)[:, :, :3])
+           image = tf.concat(xs, -1)
       else:
         image = preprocess_fn_finetune(image)
       label = tf.one_hot(label, num_classes)

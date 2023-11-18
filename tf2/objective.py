@@ -50,23 +50,34 @@ def add_contrastive_loss(hidden,
     The labels for contrastive prediction task.
   """
   # Get (normalized) hidden1 and hidden2.
+  print(hidden)
   if hidden_norm:
     hidden = tf.math.l2_normalize(hidden, -1)
+  print(hidden)
   hidden1, hidden2 = tf.split(hidden, 2, 0)
+  print(hidden1)
+  print(hidden2)
   batch_size = tf.shape(hidden1)[0]
+  print(batch_size)
 
   # Gather hidden1/hidden2 across replicas and create local labels.
   if strategy is not None:
     hidden1_large = tpu_cross_replica_concat(hidden1, strategy)
+    print(hidden1_large)
     hidden2_large = tpu_cross_replica_concat(hidden2, strategy)
+    print(hidden2_large)
     enlarged_batch_size = tf.shape(hidden1_large)[0]
+    print(enlarged_batch_size)
     # TODO(iamtingchen): more elegant way to convert u32 to s32 for replica_id.
     replica_context = tf.distribute.get_replica_context()
     replica_id = tf.cast(
         tf.cast(replica_context.replica_id_in_sync_group, tf.uint32), tf.int32)
     labels_idx = tf.range(batch_size) + replica_id * batch_size
+    print(labels_idx)
     labels = tf.one_hot(labels_idx, enlarged_batch_size * 2)
+    print(labels)
     masks = tf.one_hot(labels_idx, enlarged_batch_size)
+    print(masks)
   else:
     hidden1_large = hidden1
     hidden2_large = hidden2
@@ -74,17 +85,26 @@ def add_contrastive_loss(hidden,
     masks = tf.one_hot(tf.range(batch_size), batch_size)
 
   logits_aa = tf.matmul(hidden1, hidden1_large, transpose_b=True) / temperature
+  print(logits_aa)
   logits_aa = logits_aa - masks * LARGE_NUM
   logits_bb = tf.matmul(hidden2, hidden2_large, transpose_b=True) / temperature
+  print(logits_bb)
   logits_bb = logits_bb - masks * LARGE_NUM
   logits_ab = tf.matmul(hidden1, hidden2_large, transpose_b=True) / temperature
+  print(logits_ab)
   logits_ba = tf.matmul(hidden2, hidden1_large, transpose_b=True) / temperature
+  print(logits_ba)
 
+  # print(tf.concat([logits_ab, logits_aa], 1))
+  # print(tf.concat([logits_ba, logits_bb], 1))
   loss_a = tf.nn.softmax_cross_entropy_with_logits(
       labels, tf.concat([logits_ab, logits_aa], 1))
+  print(loss_a)
   loss_b = tf.nn.softmax_cross_entropy_with_logits(
       labels, tf.concat([logits_ba, logits_bb], 1))
+  print(loss_b)
   loss = tf.reduce_mean(loss_a + loss_b)
+  print(loss)
 
   return loss, logits_ab, labels
 

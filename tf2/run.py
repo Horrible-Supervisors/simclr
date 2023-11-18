@@ -264,7 +264,7 @@ flags.DEFINE_integer(
     'The number of image variations to select from. Only used when variations is True')
 
 flags.DEFINE_enum(
-    'augmentation_mode', 'variations_only', ['variations_only', 'variations_then_default', 'variations_or_default'],
+    'augmentation_mode', 'variations_only', ['variations_only', 'variations_then_default', 'variations_or_default', 'variations_and_default'],
     'The variation training augmentation mode to use. '
     'Only used when variations is True.')
 
@@ -641,6 +641,7 @@ def main(argv):
         logging.info("Run Model")
         projection_head_outputs, supervised_head_outputs = model(
             features, training=True)
+        print(projection_head_outputs, flush=True)
         loss = None
         if projection_head_outputs is not None:
           outputs = projection_head_outputs
